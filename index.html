@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecOps AI Agent — ServiceNow Connected</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0A0F1E; --surface: #111827; --surface2: #1A2235;
+    --border: #1E2D45; --border2: #2A3F5F;
+    --accent: #2E86AB; --accent2: #1A5F7A;
+    --green: #10B981; --red: #EF4444; --amber: #F59E0B;
+    --text: #E8EDF5; --text2: #8FA3BF; --text3: #4A6280;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Cascadia Code','Fira Code',monospace;
+  }
+  body { background:var(--bg); color:var(--text); font-family:var(--font); height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* HEADER */
+  header { background:var(--surface); border-bottom:1px solid var(--border); padding:12px 20px; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+  .logo { width:36px; height:36px; background:linear-gradient(135deg,var(--accent),#7C3AED); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .header-title { font-size:15px; font-weight:600; }
+  .header-sub { font-size:11px; color:var(--text2); margin-top:1px; }
+  .user-pill { margin-left:auto; display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border2); border-radius:20px; padding:5px 12px; font-size:12px; cursor:pointer; }
+  .user-pill:hover { border-color:var(--accent); }
+  .user-avatar { width:22px; height:22px; border-radius:50%; background:linear-gradient(135deg,var(--accent),#7C3AED); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:#fff; }
+  .conn-dot { width:7px; height:7px; border-radius:50%; }
+  .dot-green { background:var(--green); box-shadow:0 0 5px var(--green); }
+  .dot-amber { background:var(--amber); }
+  .dot-red { background:var(--red); }
+
+  /* LOGIN SCREEN */
+  #login-screen { flex:1; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:32px; width:100%; max-width:420px; }
+  .login-logo { width:56px; height:56px; background:linear-gradient(135deg,var(--accent),#7C3AED); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:28px; margin:0 auto 20px; }
+  .login-title { text-align:center; font-size:20px; font-weight:600; margin-bottom:6px; }
+  .login-sub { text-align:center; font-size:13px; color:var(--text2); margin-bottom:28px; line-height:1.6; }
+  .form-group { margin-bottom:16px; }
+  .form-label { font-size:12px; color:var(--text2); margin-bottom:6px; display:block; }
+  .form-input { width:100%; background:var(--surface2); border:1px solid var(--border2); border-radius:8px; padding:10px 14px; color:var(--text); font-size:13px; outline:none; transition:border-color .15s; font-family:var(--font); }
+  .form-input:focus { border-color:var(--accent); }
+  .form-input::placeholder { color:var(--text3); }
+  .login-btn { width:100%; background:var(--accent); color:#fff; border:none; border-radius:8px; padding:12px; font-size:14px; font-weight:500; cursor:pointer; margin-top:8px; transition:background .15s; }
+  .login-btn:hover { background:var(--accent2); }
+  .login-btn:disabled { background:var(--border2); cursor:not-allowed; }
+  .login-error { background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); border-radius:8px; padding:10px 14px; font-size:12px; color:#FCA5A5; margin-top:12px; display:none; }
+  .login-note { text-align:center; font-size:11px; color:var(--text3); margin-top:16px; line-height:1.6; }
+  .sn-url-display { font-family:var(--mono); font-size:11px; color:var(--accent); }
+  .divider { display:flex; align-items:center; gap:10px; margin:16px 0; }
+  .divider-line { flex:1; height:1px; background:var(--border); }
+  .divider-text { font-size:11px; color:var(--text3); }
+
+  /* MAIN APP */
+  #app-screen { display:none; flex:1; flex-direction:column; overflow:hidden; }
+  .main { display:flex; flex:1; overflow:hidden; }
+
+  /* SIDEBAR */
+  .sidebar { width:230px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow:hidden; }
+  .sidebar-title { padding:12px 14px 8px; font-size:10px; font-weight:600; color:var(--text3); letter-spacing:.08em; text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .sir-list { flex:1; overflow-y:auto; padding:8px; }
+  .sir-card { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:6px; cursor:pointer; transition:border-color .15s; }
+  .sir-card:hover { border-color:var(--border2); }
+  .sir-num { font-size:12px; font-weight:600; color:var(--accent); font-family:var(--mono); }
+  .sir-desc { font-size:11px; color:var(--text2); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sir-meta { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
+  .badge { font-size:9px; font-weight:600; padding:2px 6px; border-radius:20px; }
+  .badge-red { background:rgba(239,68,68,.15); color:#FCA5A5; }
+  .badge-amber { background:rgba(245,158,11,.15); color:#FCD34D; }
+  .badge-blue { background:rgba(46,134,171,.15); color:#93C5FD; }
+  .badge-green { background:rgba(16,185,129,.15); color:#6EE7B7; }
+  .badge-purple { background:rgba(124,58,237,.15); color:#C4B5FD; }
+  .empty-state { text-align:center; padding:32px 14px; color:var(--text3); font-size:12px; line-height:1.8; }
+
+  /* CHAT */
+  .chat-area { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .chat-messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .chat-messages::-webkit-scrollbar { width:4px; }
+  .chat-messages::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+  .msg { display:flex; gap:10px; }
+  .msg.user { flex-direction:row-reverse; }
+  .msg-avatar { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; font-weight:600; }
+  .msg.agent .msg-avatar { background:linear-gradient(135deg,var(--accent),#7C3AED); font-size:16px; }
+  .msg.user .msg-avatar { background:linear-gradient(135deg,#7C3AED,var(--accent)); font-size:12px; color:#fff; }
+  .msg-body { max-width:78%; }
+  .msg-name { font-size:10px; color:var(--text3); margin-bottom:3px; }
+  .msg.user .msg-name { text-align:right; }
+  .msg-bubble { padding:11px 14px; border-radius:12px; font-size:13px; line-height:1.6; }
+  .msg.agent .msg-bubble { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-top-left-radius:4px; }
+  .msg.user .msg-bubble { background:var(--accent2); color:#fff; border-top-right-radius:4px; }
+
+  /* SIR RESULT CARD */
+  .sir-result { background:var(--bg); border:1px solid var(--border2); border-radius:10px; padding:14px; margin-top:10px; font-size:12px; }
+  .sir-result-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .sir-result-num { font-family:var(--mono); font-size:15px; font-weight:700; color:var(--green); }
+  .sir-result-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .sir-field { display:flex; flex-direction:column; gap:2px; }
+  .sir-field-label { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:.06em; }
+  .sir-field-value { font-size:11px; color:var(--text); font-weight:500; }
+  .sir-steps { margin-top:10px; padding-top:8px; border-top:1px solid var(--border); }
+  .sir-steps-title { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .sir-step { display:flex; gap:8px; margin-bottom:5px; font-size:11px; color:var(--text2); line-height:1.5; }
+  .sir-step-num { color:var(--accent); font-weight:600; flex-shrink:0; }
+  .sir-link { display:inline-flex; align-items:center; gap:5px; margin-top:10px; padding:5px 12px; background:rgba(46,134,171,.15); border:1px solid rgba(46,134,171,.3); border-radius:6px; color:var(--accent); font-size:11px; text-decoration:none; }
+  .sir-link:hover { background:rgba(46,134,171,.25); }
+
+  /* TYPING */
+  .typing { display:flex; gap:4px; align-items:center; padding:11px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; border-top-left-radius:4px; width:fit-content; }
+  .typing span { width:5px; height:5px; border-radius:50%; background:var(--text3); animation:bounce .9s ease-in-out infinite; }
+  .typing span:nth-child(2) { animation-delay:.15s; }
+  .typing span:nth-child(3) { animation-delay:.3s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+
+  /* WELCOME */
+  .welcome { text-align:center; padding:30px 20px; margin:auto; }
+  .welcome h2 { font-size:18px; font-weight:600; margin-bottom:8px; }
+  .welcome p { font-size:13px; color:var(--text2); line-height:1.7; max-width:400px; margin:0 auto 20px; }
+  .quick-prompts { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .quick-prompt { background:var(--surface2); border:1px solid var(--border2); border-radius:20px; padding:6px 14px; font-size:12px; color:var(--text2); cursor:pointer; transition:all .15s; }
+  .quick-prompt:hover { border-color:var(--accent); color:var(--text); }
+
+  /* INPUT */
+  .input-area { padding:14px 20px; background:var(--surface); border-top:1px solid var(--border); flex-shrink:0; }
+  .input-row { display:flex; gap:10px; align-items:flex-end; }
+  textarea { flex:1; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; padding:10px 14px; color:var(--text); font-size:13px; font-family:var(--font); resize:none; outline:none; min-height:44px; max-height:120px; line-height:1.5; transition:border-color .15s; }
+  textarea:focus { border-color:var(--accent); }
+  textarea::placeholder { color:var(--text3); }
+  .send-btn { width:44px; height:44px; background:var(--accent); border:none; border-radius:10px; color:#fff; font-size:18px; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+  .send-btn:hover { background:var(--accent2); }
+  .send-btn:disabled { background:var(--border2); cursor:not-allowed; }
+  .input-hint { font-size:10px; color:var(--text3); margin-top:6px; text-align:center; }
+
+  /* LOGOUT DROPDOWN */
+  .dropdown { position:relative; }
+  .dropdown-menu { position:absolute; right:0; top:calc(100% + 8px); background:var(--surface); border:1px solid var(--border2); border-radius:10px; padding:6px; min-width:200px; z-index:100; display:none; }
+  .dropdown-menu.open { display:block; }
+  .dropdown-item { padding:8px 12px; border-radius:6px; font-size:12px; color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:8px; }
+  .dropdown-item:hover { background:var(--surface2); color:var(--text); }
+  .dropdown-divider { height:1px; background:var(--border); margin:4px 0; }
+  .dropdown-user { padding:10px 12px; }
+  .dropdown-username { font-size:13px; font-weight:500; color:var(--text); }
+  .dropdown-instance { font-size:11px; color:var(--text3); font-family:var(--mono); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ──────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🛡️</div>
+    <div class="login-title">SecOps AI Agent</div>
+    <div class="login-sub">Sign in with your ServiceNow credentials to start reporting security incidents instantly.</div>
+
+    <div class="form-group">
+      <label class="form-label">ServiceNow Instance URL</label>
+      <input class="form-input" id="sn-url" placeholder="https://dev423253.service-now.com" value="https://dev423253.service-now.com" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Username</label>
+      <input class="form-input" id="sn-user" placeholder="Enter your ServiceNow username" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" id="sn-pass" type="password" placeholder="Enter your password"
+        onkeydown="if(event.key==='Enter') login()" />
+    </div>
+
+    <button class="login-btn" id="login-btn" onclick="login()">Sign In to ServiceNow</button>
+    <div class="login-error" id="login-error"></div>
+
+    <div class="login-note">
+      🔒 Your credentials are used only to connect to ServiceNow.<br>
+      They are never stored or sent anywhere else.<br><br>
+      Don't have a ServiceNow account? Contact your admin.
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ──────────────────────────────────────────────────────────── -->
+<div id="app-screen">
+  <header>
+    <div class="logo">🛡️</div>
+    <div>
+      <div class="header-title">SecOps AI Agent</div>
+      <div class="header-sub" id="header-sub">Keyword Intelligence · ServiceNow Connected</div>
+    </div>
+    <div class="dropdown" style="margin-left:auto;">
+      <div class="user-pill" onclick="toggleDropdown()">
+        <div class="user-avatar" id="user-initial">U</div>
+        <span id="header-username">User</span>
+        <div class="conn-dot dot-green"></div>
+        <span style="font-size:10px;color:var(--text3)">▼</span>
+      </div>
+      <div class="dropdown-menu" id="dropdown-menu">
+        <div class="dropdown-user">
+          <div class="dropdown-username" id="dd-username">—</div>
+          <div class="dropdown-instance" id="dd-instance">—</div>
+        </div>
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-item" onclick="openSN()">🔗 Open ServiceNow</div>
+        <div class="dropdown-item" onclick="logout()" style="color:#FCA5A5;">🚪 Sign Out</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="sidebar">
+      <div class="sidebar-title">My SIRs This Session</div>
+      <div class="sir-list" id="sir-list">
+        <div class="empty-state">No incidents yet.<br>Describe a security<br>issue to get started.</div>
+      </div>
+    </div>
+
+    <div class="chat-area">
+      <div class="chat-messages" id="chat-messages">
+        <div class="welcome" id="welcome">
+          <div style="font-size:44px;margin-bottom:12px;">🛡️</div>
+          <h2 id="welcome-title">Welcome!</h2>
+          <p>Describe any security issue in plain English. I'll create a real Security Incident in ServiceNow instantly — with MITRE ATT&CK mapping, containment steps and GRC notes.</p>
+          <div class="quick-prompts">
+            <div class="quick-prompt" onclick="usePrompt('Ransomware detected on finance laptop')">💻 Ransomware</div>
+            <div class="quick-prompt" onclick="usePrompt('Suspicious phishing email received')">🎣 Phishing email</div>
+            <div class="quick-prompt" onclick="usePrompt('Unauthorized login from unknown IP at 3am')">🔐 Unauthorized access</div>
+            <div class="quick-prompt" onclick="usePrompt('Customer data found leaked on dark web')">💾 Data breach</div>
+            <div class="quick-prompt" onclick="usePrompt('Critical CVE exploit detected on web server')">⚠️ Vulnerability</div>
+            <div class="quick-prompt" onclick="usePrompt('DDoS attack causing service outage')">🌐 DDoS attack</div>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;">— or update an existing SIR —</div>
+          <div class="quick-prompts">
+            <div class="quick-prompt" onclick="usePrompt('Add notes to SIR0010022 - investigating the phishing email source')">📝 Add notes</div>
+            <div class="quick-prompt" onclick="usePrompt('Close SIR0010022 - threat contained and resolved')">🔒 Close SIR</div>
+            <div class="quick-prompt" onclick="usePrompt('Escalate SIR0010022 - needs CISO attention')">⚠️ Escalate</div>
+            <div class="quick-prompt" onclick="usePrompt('Assign SIR0010022 to john.smith')">👤 Assign SIR</div>
+          </div>
+        </div>
+      </div>
+      <div class="input-area">
+        <div class="input-row">
+          <textarea id="user-input" placeholder="Describe the security issue in plain English..." rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"
+            oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
+        </div>
+        <div class="input-hint">⚡ Keyword Intelligence · No API key needed · Press Enter to send · Real SIRs created in ServiceNow</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let snUrl = '', snAuth = '', snUsername = '', snDisplayName = '', snUserSysId = '', snUserEmail = '', snUserDept = '', snUserTitle = '';
+
+// ── THREAT DETECTION ENGINE ───────────────────────────────────────────────────
+const THREATS = {
+  phishing: {
+    keywords: ['phish','suspicious email','malicious link','spoofed','fake login','spam','credential harvest','fake email'],
+    classification: 'Spear Phishing — Credential Harvesting',
+    tactic: 'Initial Access', technique: 'T1566.002 — Spearphishing Link',
+    vector: 'Email', priority: '1', category: 'phishing',
+    steps: ['Block sender domain at email gateway immediately','Block malicious URL at web proxy and firewall','Identify all recipients of this email via mail logs','Check proxy logs for any user who clicked the link','Force password reset and enable MFA for affected users'],
+    grc: 'GDPR Art.33: 72hr notification if credentials compromised. ISO 27001 A.16.1.2 applies.',
+    reply: "I've identified this as a Spear Phishing attack. A P1 Critical SIR has been created in ServiceNow under your account with full MITRE mapping and containment steps."
+  },
+  malware: {
+    keywords: ['malware','ransomware','virus','trojan','encrypted files','infection','worm','cryptolocker','rootkit'],
+    classification: 'Malware Infection — Ransomware',
+    tactic: 'Execution', technique: 'T1204 — User Execution',
+    vector: 'Endpoint', priority: '1', category: 'malware',
+    steps: ['Isolate affected machine from network immediately — disconnect LAN and WiFi','Preserve disk image for forensic analysis before any cleanup','Identify all network shares mounted from affected machine','Scan all systems on same subnet for lateral spread','Restore from last known clean backup after full eradication'],
+    grc: 'ISO 27001 A.16: Formal response mandatory. GDPR Art.33: 72hr notification if personal data encrypted.',
+    reply: "Critical Malware / Ransomware detected. A P1 SIR has been created in ServiceNow under your account. Isolate the affected machine immediately."
+  },
+  'unauthorized-access': {
+    keywords: ['unauthorized','unusual login','credential','unknown ip','suspicious access','brute force','privilege','account takeover','password spray','strange login'],
+    classification: 'Unauthorized Access — Credential Compromise',
+    tactic: 'Initial Access', technique: 'T1078 — Valid Accounts',
+    vector: 'Network', priority: '1', category: 'unauthorized-access',
+    steps: ['Disable the compromised account immediately','Revoke all active sessions for the account','Force password reset and enforce MFA','Review AD / AAD sign-in logs for lateral movement','Audit all actions taken by account in the last 72 hours'],
+    grc: 'GDPR Art.33: Unauthorized access to personal data triggers 72hr notification. ISO 27001 A.9 applies.',
+    reply: "Unauthorized access detected. A P1 Critical SIR has been created in ServiceNow under your account. Disable the affected account immediately."
+  },
+  'denial-of-service': {
+    keywords: ['ddos','dos','service down','outage','unavailable','flooding','bandwidth','overload','traffic spike','under attack'],
+    classification: 'Denial of Service — Infrastructure Attack',
+    tactic: 'Impact', technique: 'T1498 — Network Denial of Service',
+    vector: 'Network', priority: '1', category: 'denial-of-service',
+    steps: ['Enable DDoS protection and rate limiting at the perimeter','Identify and block attack source IPs at the firewall','Activate CDN failover or load balancer redundancy','Contact upstream ISP for traffic scrubbing','Activate business continuity and DR plan'],
+    grc: 'ISO 27001 A.17: Business continuity must be activated. SLA breach obligations apply.',
+    reply: "DDoS / Service disruption detected. A P1 Critical SIR has been created in ServiceNow under your account. Activate DDoS protection immediately."
+  },
+  data: {
+    keywords: ['data breach','data leak','exfil','stolen data','dark web','sensitive data','pii','personal data','confidential','exposed','database dump'],
+    classification: 'Data Breach — Unauthorised Exfiltration',
+    tactic: 'Exfiltration', technique: 'T1041 — Exfiltration Over C2 Channel',
+    vector: 'Network', priority: '1', category: 'data',
+    steps: ['Identify and block the exfiltration channel immediately','Determine scope — what data was accessed or copied','Preserve all relevant logs as forensic evidence','Engage Legal, DPO and CISO immediately','Assess GDPR 72-hour notification obligation'],
+    grc: 'GDPR Art.33 CRITICAL: 72hr breach notification legally mandatory. Engage DPO now.',
+    reply: "Data breach detected. A P1 Critical SIR has been created in ServiceNow under your account. Legal and DPO must be engaged immediately — GDPR obligations apply."
+  },
+  vulnerability: {
+    keywords: ['cve','vulnerability','exploit','patch','zero-day','unpatched','security flaw','injection','xss','sql','rce','remote code'],
+    classification: 'Vulnerability Exploitation',
+    tactic: 'Initial Access', technique: 'T1190 — Exploit Public-Facing Application',
+    vector: 'Network', priority: '2', category: 'vulnerability',
+    steps: ['Apply vendor patch or implement workaround immediately','Check logs to determine if vulnerability has been actively exploited','Scan all similar systems for the same vulnerability','Implement compensating controls if patch unavailable','Update vulnerability management register'],
+    grc: 'ISO 27001 A.12.6: Vulnerability management procedure must be followed.',
+    reply: "Vulnerability / Exploit detected. A P2 High SIR has been created in ServiceNow under your account. Apply the patch or compensating controls immediately."
+  }
+};
+
+function detectThreat(text) {
+  const t = text.toLowerCase();
+  for (const [key, threat] of Object.entries(THREATS)) {
+    if (threat.keywords.some(kw => t.includes(kw))) return { key, ...threat };
+  }
+  return {
+    key: 'other',
+    classification: 'Security Threat — Manual Classification Required',
+    tactic: 'Under Investigation', technique: 'TBD — Analyst review required',
+    vector: 'Unknown', priority: '2', category: 'other',
+    steps: ['Preserve all logs and evidence related to this incident','Isolate affected systems if scope is unclear','Assign to senior analyst for manual triage','Document all initial findings in work notes','Escalate to security team lead'],
+    grc: 'ISO 27001 A.16: Follow formal incident management procedure.',
+    reply: "I've raised a security incident under your account for analyst review. A P2 High SIR has been created in ServiceNow."
+  };
+}
+
+function buildWorkNotes(threat, userText, username) {
+  const now = new Date().toISOString().replace('T',' ').substring(0,19);
+  let wn = '========================================\n';
+  wn += 'CLAUDE AI - INTELLIGENT SIR ENRICHMENT\n';
+  wn += '(SIMULATION MODE - Keyword Intelligence)\n';
+  wn += '========================================\n';
+  wn += 'Reported by  : ' + username + '\n';
+  wn += 'Enriched     : ' + now + ' UTC\n\n';
+  wn += 'ORIGINAL REPORT\n---------------\n' + userText + '\n\n';
+  wn += 'THREAT CLASSIFICATION\n---------------------\n';
+  wn += 'Type          : ' + threat.classification + '\n';
+  wn += 'Attack Vector : ' + threat.vector + '\n';
+  wn += 'Business Impact: Data Loss, Compliance, Reputational\n\n';
+  wn += 'MITRE ATT&CK MAPPING\n--------------------\n';
+  wn += 'Tactic    : ' + threat.tactic + '\n';
+  wn += 'Technique : ' + threat.technique + '\n\n';
+  wn += 'PRIORITY ASSESSMENT\n-------------------\n';
+  wn += 'Recommended Priority : P' + threat.priority + (threat.priority==='1' ? ' - Critical' : ' - High') + '\n';
+  wn += 'Confidence Score     : 7/10 (Simulation Mode)\n\n';
+  wn += 'IMMEDIATE CONTAINMENT STEPS\n---------------------------\n';
+  threat.steps.forEach((s,i) => { wn += (i+1) + '. ' + s + '\n'; });
+  wn += '\nGRC & COMPLIANCE CONSIDERATIONS\n-------------------------------\n';
+  wn += threat.grc + '\n\n';
+  wn += '========================================\n';
+  wn += 'Reported via SecOps AI Agent\n';
+  wn += 'User: ' + username + '\n';
+  wn += '========================================';
+  return wn;
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+async function login() {
+  const url  = document.getElementById("sn-url").value.trim().replace(/\/$/,"");
+  const user = document.getElementById("sn-user").value.trim();
+  const pass = document.getElementById("sn-pass").value;
+  const btn  = document.getElementById("login-btn");
+
+  if (!url || !user || !pass) { showError("Please fill in all fields."); return; }
+
+  btn.disabled = true;
+  btn.textContent = "Signing in...";
+  document.getElementById("login-error").style.display = "none";
+
+  const auth = "Basic " + btoa(user + ":" + pass);
+
+  try {
+    const res = await fetch(
+      url + "/api/now/table/sys_user?sysparm_query=user_name=" + encodeURIComponent(user) +
+      "&sysparm_fields=sys_id,name,user_name,email,department,title&sysparm_limit=1",
+      { headers: { "Authorization": auth, "Accept": "application/json" } }
+    );
+
+    if (res.status === 401) { showError("❌ Wrong username or password."); btn.disabled=false; btn.textContent="Sign In to ServiceNow"; return; }
+    if (res.status === 403) { showError("❌ Account lacks API access. Contact your admin."); btn.disabled=false; btn.textContent="Sign In to ServiceNow"; return; }
+    if (!res.ok)            { showError("❌ Error " + res.status + " — check your instance URL."); btn.disabled=false; btn.textContent="Sign In to ServiceNow"; return; }
+
+    const data    = await res.json();
+    const profile = data.result && data.result[0] ? data.result[0] : {};
+
+    snUrl         = url;
+    snAuth        = auth;
+    snUsername    = profile.user_name || user;
+    snDisplayName = profile.name      || user;
+    snUserSysId   = profile.sys_id    || "";
+    snUserEmail   = profile.email     || "";
+    snUserDept    = (profile.department && profile.department.display_value) ? profile.department.display_value : "";
+    snUserTitle   = profile.title     || "";
+
+    document.getElementById("login-screen").style.display      = "none";
+    document.getElementById("app-screen").style.display        = "flex";
+    document.getElementById("app-screen").style.flexDirection  = "column";
+
+    var initial = snDisplayName.charAt(0).toUpperCase();
+    document.getElementById("user-initial").textContent    = initial;
+    document.getElementById("header-username").textContent = snDisplayName.split(" ")[0];
+    document.getElementById("header-sub").textContent      = "Connected to " + url.replace("https://","");
+    document.getElementById("dd-username").textContent     = snDisplayName + (snUserTitle ? " — " + snUserTitle : "");
+    document.getElementById("dd-instance").textContent     = url.replace("https://","") + (snUserDept ? " · " + snUserDept : "");
+    document.getElementById("welcome-title").textContent   = "Welcome, " + snDisplayName.split(" ")[0] + "!";
+
+  } catch (e) {
+    var msg = e.message || "";
+    if (msg.indexOf("fetch") !== -1 || msg.indexOf("CORS") !== -1 || msg.indexOf("Failed") !== -1 || msg.indexOf("Network") !== -1) {
+      showError("⚠️ CORS error — ServiceNow is blocking the connection. Ask your admin to add a CORS rule:\nDomain: https://soujanya87.github.io");
+    } else {
+      showError("❌ " + msg);
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Sign In to ServiceNow";
+}
+
+function showError(msg) {
+  const err = document.getElementById('login-error');
+  err.textContent = msg;
+  err.style.display = 'block';
+}
+
+function logout() {
+  snUrl = ''; snAuth = ''; snUsername = ''; snDisplayName = '';
+  snUserSysId = ''; snUserEmail = ''; snUserDept = ''; snUserTitle = '';
+  document.getElementById('sn-pass').value = '';
+  document.getElementById('sn-user').value = '';
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('sir-list').innerHTML = '<div class="empty-state">No incidents yet.<br>Describe a security<br>issue to get started.</div>';
+  addWelcome();
+  toggleDropdown(false);
+}
+
+function openSN() { window.open(snUrl, '_blank'); toggleDropdown(false); }
+
+function toggleDropdown(force) {
+  const menu = document.getElementById('dropdown-menu');
+  if (force === false) { menu.classList.remove('open'); return; }
+  menu.classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dropdown')) document.getElementById('dropdown-menu').classList.remove('open');
+});
+
+// ── UPDATE INTENT DETECTION ───────────────────────────────────────────────────
+function detectUpdateIntent(text) {
+  // Match SIR followed by ANY number of digits (flexible — handles SIR0010025, SIR001002, etc.)
+  const sirMatch = text.match(/\bSIR\d+\b/i);
+
+  // If no SIR number found — definitely a new incident
+  if (!sirMatch) return null;
+
+  // SIR number found — this is ALWAYS an update, never a new SIR
+  const sirNumber = sirMatch[0].toUpperCase();
+  const rest = text
+    .replace(/\bSIR\d+\b/i, '')
+    .replace(/^[\s\-–—:,]+/, '')
+    .replace(/^(update|add note|notes|close|resolve|escalate|assign|reopen|contain)\s*/i, '')
+    .trim();
+
+  const t = text.toLowerCase();
+  let action = 'note'; // default
+  let state = null;
+  let closeCode = null;
+
+  if (/\b(close|closed|resolve|resolved|fix|fixed|done|complete|completed)\b/i.test(t)) {
+    action = 'close'; state = '3'; closeCode = 'solved';
+  } else if (/\b(contain|mitigat|remediat)\b/i.test(t)) {
+    action = 'contain'; state = '16';
+  } else if (/\bassign\b/i.test(t)) {
+    action = 'assign';
+  } else if (/\bescalat\b/i.test(t)) {
+    action = 'escalate';
+  } else if (/\b(reopen|re-open)\b/i.test(t)) {
+    action = 'reopen'; state = '1';
+  }
+  // Everything else (update, add notes, investigation started, etc.) → work note
+
+  return { sirNumber, action, state, closeCode, note: rest };
+}
+
+async function findSIRByNumber(sirNumber) {
+  const res = await fetch(
+    `${snUrl}/api/now/table/sn_si_incident?sysparm_query=number=${sirNumber}&sysparm_fields=sys_id,number,short_description,state,priority,affected_user,caller&sysparm_limit=1`,
+    { headers: { 'Authorization': snAuth, 'Accept': 'application/json' } }
+  );
+  if (!res.ok) throw new Error('Could not find ' + sirNumber);
+  const data = await res.json();
+  if (!data.result?.length) throw new Error(sirNumber + ' not found in ServiceNow');
+  return data.result[0];
+}
+
+async function updateSIR(sirNumber, action, state, closeCode, note) {
+  // Find the SIR first
+  const sir = await findSIRByNumber(sirNumber);
+  const sysId = sir.sys_id;
+
+  const patch = {};
+  const workNote = '========================================\n' +
+    'SECOPS AGENT UPDATE\n' +
+    '========================================\n' +
+    'Updated by : ' + snDisplayName + ' (' + snUsername + ')\n' +
+    'Action     : ' + action.toUpperCase() + '\n' +
+    'Time       : ' + new Date().toISOString().replace('T',' ').substring(0,19) + ' UTC\n\n' +
+    (note ? 'Notes: ' + note : '') + '\n' +
+    '========================================';
+
+  patch.work_notes = workNote;
+
+  if (state) patch.state = state;
+  if (action === 'close') {
+    patch.close_code  = closeCode || 'solved';
+    patch.close_notes = note || 'Resolved by ' + snDisplayName + ' via SecOps AI Agent';
+  }
+  if (action === 'escalate') patch.escalation = '1';
+
+  // Handle assign
+  let assigneeDisplay = '';
+  if (action === 'assign') {
+    const assignMatch = note.match(/to\s+(\S+)/i) || note.match(/(\S+)/);
+    if (assignMatch) {
+      const assignUsername = assignMatch[1].toLowerCase();
+      try {
+        const uRes = await fetch(
+          `${snUrl}/api/now/table/sys_user?sysparm_query=user_nameLIKE${assignUsername}&sysparm_fields=sys_id,name,user_name&sysparm_limit=1`,
+          { headers: { 'Authorization': snAuth, 'Accept': 'application/json' } }
+        );
+        const uData = await uRes.json();
+        if (uData.result?.length) {
+          patch.assigned_to  = uData.result[0].sys_id;
+          assigneeDisplay = uData.result[0].name;
+        }
+      } catch(e) { console.warn('Could not find assignee'); }
+    }
+  }
+
+  // PATCH the SIR
+  const res = await fetch(`${snUrl}/api/now/table/sn_si_incident/${sysId}`, {
+    method: 'PATCH',
+    headers: { 'Authorization': snAuth, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(patch)
+  });
+
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e.error?.message || 'Update failed — ' + res.status);
+  }
+
+  return { sir, sysId, action, assigneeDisplay };
+}
+
+const STATE_LABELS = { '1':'Draft', '10':'New', '16':'Analysis', '18':'Contain', '19':'Eradicate', '20':'Recover', '3':'Closed', '7':'Cancelled' };
+
+function buildUpdateReply(result, action, note) {
+  const { sir, sysId, assigneeDisplay } = result;
+  const replies = {
+    close:    `✅ **${sir.number}** has been closed and resolved. Close notes saved.`,
+    note:     `📝 Work notes added to **${sir.number}** successfully.`,
+    contain:  `🔒 **${sir.number}** state updated to Contain. Work notes added.`,
+    escalate: `⚠️ **${sir.number}** has been escalated. Work notes added.`,
+    reopen:   `🔄 **${sir.number}** has been reopened and set back to Draft.`,
+    assign:   `👤 **${sir.number}** assigned to ${assigneeDisplay || 'user'}. Work notes added.`,
+  };
+  return replies[action] || `✅ **${sir.number}** updated successfully.`;
+}
+
+function buildUpdateCard(sir, action, sysId, note, assigneeDisplay) {
+  const actionLabels = {
+    close: '🔒 Closed', note: '📝 Note Added', contain: '🛡️ Contained',
+    escalate: '⚠️ Escalated', reopen: '🔄 Reopened', assign: '👤 Assigned'
+  };
+  return `
+    <div class="sir-result" style="margin-top:10px;">
+      <div class="sir-result-header">
+        <span class="sir-result-num">✅ ${sir.number}</span>
+        <span class="badge badge-blue">${actionLabels[action] || 'Updated'}</span>
+        <span class="badge badge-green">by ${snDisplayName.split(' ')[0]}</span>
+      </div>
+      <div class="sir-result-grid">
+        <div class="sir-field"><span class="sir-field-label">Incident</span><span class="sir-field-value">${sir.short_description?.substring(0,40)}...</span></div>
+        <div class="sir-field"><span class="sir-field-label">Action</span><span class="sir-field-value">${actionLabels[action] || action}</span></div>
+        <div class="sir-field"><span class="sir-field-label">Updated by</span><span class="sir-field-value">👤 ${snDisplayName}</span></div>
+        ${assigneeDisplay ? `<div class="sir-field"><span class="sir-field-label">Assigned To</span><span class="sir-field-value">${assigneeDisplay}</span></div>` : ''}
+        ${note ? `<div class="sir-field" style="grid-column:1/-1"><span class="sir-field-label">Notes</span><span class="sir-field-value">${note}</span></div>` : ''}
+      </div>
+      <a class="sir-link" href="${snUrl}/nav_to.do?uri=sn_si_incident.do?sys_id=${sysId}" target="_blank">🔗 Open ${sir.number} in ServiceNow</a>
+    </div>`;
+}
+async function createSIR(threat, userText) {
+  const payload = {
+    short_description: userText.length > 80 ? userText.substring(0,77)+'...' : userText,
+    description: 'Security incident reported via SecOps AI Agent.\n\n' +
+      'Reported by  : ' + snDisplayName + ' (' + snUsername + ')\n' +
+      (snUserEmail  ? 'Email        : ' + snUserEmail  + '\n' : '') +
+      (snUserDept   ? 'Department   : ' + snUserDept   + '\n' : '') +
+      (snUserTitle  ? 'Title        : ' + snUserTitle  + '\n' : '') +
+      '\nOriginal report:\n' + userText,
+    category:     threat.category,
+    priority:     threat.priority,
+    state:        '1',
+    contact_type: 'self-service',
+    work_notes:   buildWorkNotes(threat, userText, snDisplayName + ' (' + snUsername + ')')
+  };
+
+  // Set caller and opened_for on insert (these are accepted on POST)
+  if (snUserSysId) {
+    payload.caller     = snUserSysId;
+    payload.opened_for = snUserSysId;
+  }
+
+  // STEP 1 — Create the SIR
+  const res = await fetch(`${snUrl}/api/now/table/sn_si_incident`, {
+    method: 'POST',
+    headers: { 'Authorization': snAuth, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (res.status === 403) throw new Error('Your account does not have permission to create Security Incidents. Contact your admin to grant the sn_si.write role.');
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || 'ServiceNow error ' + res.status); }
+
+  const data = await res.json();
+  const sysId  = data.result.sys_id;
+  const number = data.result.number;
+
+  // STEP 2 — Patch affected_user separately (read-only on insert, writable on update)
+  if (snUserSysId && sysId) {
+    try {
+      await fetch(`${snUrl}/api/now/table/sn_si_incident/${sysId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': snAuth, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ affected_user: snUserSysId })
+      });
+    } catch (e) {
+      console.warn('Could not set affected_user:', e.message);
+    }
+  }
+
+  return { number, sys_id: sysId };
+}
+
+// ── UI HELPERS ────────────────────────────────────────────────────────────────
+function addWelcome() {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'welcome'; div.id = 'welcome';
+  div.innerHTML = `
+    <div style="font-size:44px;margin-bottom:12px;">🛡️</div>
+    <h2 id="welcome-title">Welcome!</h2>
+    <p>Describe any security issue in plain English. I'll create a real Security Incident in ServiceNow instantly.</p>
+    <div class="quick-prompts">
+      <div class="quick-prompt" onclick="usePrompt('Ransomware detected on finance laptop')">💻 Ransomware</div>
+      <div class="quick-prompt" onclick="usePrompt('Suspicious phishing email received')">🎣 Phishing email</div>
+      <div class="quick-prompt" onclick="usePrompt('Unauthorized login from unknown IP at 3am')">🔐 Unauthorized access</div>
+      <div class="quick-prompt" onclick="usePrompt('Customer data found leaked on dark web')">💾 Data breach</div>
+      <div class="quick-prompt" onclick="usePrompt('Critical CVE exploit detected on web server')">⚠️ Vulnerability</div>
+      <div class="quick-prompt" onclick="usePrompt('DDoS attack causing service outage')">🌐 DDoS attack</div>
+    </div>`;
+  container.appendChild(div);
+}
+
+function removeWelcome() { const w = document.getElementById('welcome'); if (w) w.remove(); }
+
+function addMessage(role, content, sirData) {
+  removeWelcome();
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  const avatar = role === 'agent' ? '🛡️' : snDisplayName.charAt(0).toUpperCase();
+  const name = role === 'agent' ? 'SecOps AI Agent' : snDisplayName;
+
+  let sirHtml = '';
+  if (sirData) {
+    const pc = sirData.priority==='1' ? 'badge-red' : 'badge-amber';
+    const steps = sirData.steps.map((s,i) => `<div class="sir-step"><span class="sir-step-num">${i+1}.</span>${s}</div>`).join('');
+    sirHtml = `
+      <div class="sir-result">
+        <div class="sir-result-header">
+          <span class="sir-result-num">✅ ${sirData.number}</span>
+          <span class="badge ${pc}">P${sirData.priority} ${sirData.priority==='1'?'Critical':'High'}</span>
+          <span class="badge badge-blue">${sirData.category}</span>
+          <span class="badge badge-green">Created by ${snDisplayName.split(' ')[0]}</span>
+        </div>
+        <div class="sir-result-grid">
+          <div class="sir-field"><span class="sir-field-label">Threat Type</span><span class="sir-field-value">${sirData.threat_classification}</span></div>
+          <div class="sir-field"><span class="sir-field-label">MITRE Tactic</span><span class="sir-field-value">${sirData.mitre_tactic}</span></div>
+          <div class="sir-field"><span class="sir-field-label">MITRE Technique</span><span class="sir-field-value">${sirData.mitre_technique}</span></div>
+          <div class="sir-field"><span class="sir-field-label">Attack Vector</span><span class="sir-field-value">${sirData.attack_vector}</span></div>
+          <div class="sir-field"><span class="sir-field-label">Affected User</span><span class="sir-field-value">👤 ${snDisplayName}</span></div>
+          <div class="sir-field"><span class="sir-field-label">Reported By</span><span class="sir-field-value">${snUsername}${snUserDept ? ' · '+snUserDept : ''}</span></div>
+        </div>
+        <div class="sir-steps">
+          <div class="sir-steps-title">Immediate Containment Steps</div>
+          ${steps}
+        </div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);">📋 ${sirData.grc}</div>
+        <a class="sir-link" href="${snUrl}/nav_to.do?uri=sn_si_incident.do?sys_id=${sirData.sys_id}" target="_blank">🔗 Open ${sirData.number} in ServiceNow</a>
+      </div>`;
+  }
+
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div class="msg-body">
+      <div class="msg-name">${name}</div>
+      <div class="msg-bubble">${content}${sirHtml}</div>
+    </div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addTyping() {
+  removeWelcome();
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg agent'; div.id = 'typing';
+  div.innerHTML = `<div class="msg-avatar">🛡️</div><div class="msg-body"><div class="msg-name">SecOps AI Agent</div><div class="typing"><span></span><span></span><span></span></div></div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+function removeTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+
+function addToSidebar(sir) {
+  const list = document.getElementById('sir-list');
+  const empty = list.querySelector('.empty-state');
+  if (empty) empty.remove();
+  const pc = sir.priority==='1' ? 'badge-red' : 'badge-amber';
+  const card = document.createElement('div');
+  card.className = 'sir-card';
+  card.onclick = () => window.open(`${snUrl}/nav_to.do?uri=sn_si_incident.do?sys_id=${sir.sys_id}`, '_blank');
+  card.innerHTML = `
+    <div class="sir-num">${sir.number}</div>
+    <div class="sir-desc">${sir.short_description}</div>
+    <div class="sir-meta">
+      <span class="badge ${pc}">P${sir.priority}</span>
+      <span class="badge badge-blue">${sir.category}</span>
+      <span class="badge badge-green">Live ✅</span>
+    </div>`;
+  list.insertBefore(card, list.firstChild);
+}
+
+function addToSidebarUpdate(sir, action, sysId) {
+  const list = document.getElementById('sir-list');
+  // Check if card already exists — update it
+  const existing = [...list.querySelectorAll('.sir-num')].find(el => el.textContent === sir.number);
+  if (existing) {
+    const card = existing.closest('.sir-card');
+    const meta = card.querySelector('.sir-meta');
+    const actionLabels = { close:'🔒 Closed', note:'📝 Updated', contain:'🛡️ Contained', escalate:'⚠️ Escalated', assign:'👤 Assigned', reopen:'🔄 Reopened' };
+    const existing_update = meta.querySelector('.badge-purple');
+    if (existing_update) existing_update.remove();
+    const span = document.createElement('span');
+    span.className = 'badge badge-purple';
+    span.textContent = actionLabels[action] || 'Updated';
+    meta.appendChild(span);
+    return;
+  }
+  // Otherwise add new card
+  const empty = list.querySelector('.empty-state');
+  if (empty) empty.remove();
+  const card = document.createElement('div');
+  card.className = 'sir-card';
+  card.onclick = () => window.open(`${snUrl}/nav_to.do?uri=sn_si_incident.do?sys_id=${sysId}`, '_blank');
+  card.innerHTML = `
+    <div class="sir-num">${sir.number}</div>
+    <div class="sir-desc">${sir.short_description?.substring(0,40)}...</div>
+    <div class="sir-meta">
+      <span class="badge badge-purple">Updated ✅</span>
+    </div>`;
+  list.insertBefore(card, list.firstChild);
+}
+  document.getElementById('user-input').value = text;
+  sendMessage();
+}
+
+// ── SEND MESSAGE ──────────────────────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+  addMessage('user', text);
+  addTyping();
+
+  try {
+    await new Promise(r => setTimeout(r, 700));
+
+    // ── Check if this is an UPDATE request ──
+    const updateIntent = detectUpdateIntent(text);
+
+    if (updateIntent) {
+      const { sirNumber, action, state, closeCode, note } = updateIntent;
+      const result = await updateSIR(sirNumber, action, state, closeCode, note);
+      removeTyping();
+      const replyText = buildUpdateReply(result, action, note);
+      const cardHtml  = buildUpdateCard(result.sir, action, result.sysId, note, result.assigneeDisplay);
+
+      // Add to sidebar if not already there
+      addToSidebarUpdate(result.sir, action, result.sysId);
+
+      // Show reply with card
+      removeWelcome();
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'msg agent';
+      div.innerHTML = `
+        <div class="msg-avatar">🛡️</div>
+        <div class="msg-body">
+          <div class="msg-name">SecOps AI Agent</div>
+          <div class="msg-bubble">${replyText}${cardHtml}</div>
+        </div>`;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+
+    } else {
+      // ── New SIR creation ──
+      const threat = detectThreat(text);
+      const snResult = await createSIR(threat, text);
+
+      const sirData = {
+        number: snResult.number,
+        sys_id: snResult.sys_id,
+        short_description: text.length > 80 ? text.substring(0,77)+'...' : text,
+        priority: threat.priority,
+        category: threat.category,
+        threat_classification: threat.classification,
+        mitre_tactic: threat.tactic,
+        mitre_technique: threat.technique,
+        attack_vector: threat.vector,
+        steps: threat.steps,
+        grc: threat.grc
+      };
+
+      addToSidebar(sirData);
+      removeTyping();
+      addMessage('agent', threat.reply, sirData);
+    }
+
+  } catch(e) {
+    removeTyping();
+    let msg = '❌ ' + e.message;
+    if (e.message.includes('403')) msg = '❌ Your account does not have permission. Ask your admin to grant the <strong>sn_si.write</strong> role.';
+    addMessage('agent', msg);
+  }
+
+  document.getElementById('send-btn').disabled = false;
+}
+</script>
+</body>
+</html>
